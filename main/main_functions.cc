@@ -18,7 +18,7 @@ limitations under the License.
 #include "detection_responder.h"
 #include "image_provider.h"
 #include "model_settings.h"
-#include "bird_detection_model_data.h"
+#include "bird_detector_model_data.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_log.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
@@ -84,7 +84,7 @@ void setup()
 {
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
-  model = tflite::GetModel(g_model);
+  model = tflite::GetModel(bird_detector_model);
   if (model->version() != TFLITE_SCHEMA_VERSION)
   {
     MicroPrintf("Model provided is schema version %d not equal to supported "
@@ -177,23 +177,12 @@ void loop()
 
   TfLiteTensor *output = interpreter->output(0);
 
-  // Process the inference results.
-  // TODO 1: Update the code to handle the 3 classes: cup, laptop, unknown -----
-  int8_t unknown_score = output->data.uint8[kUnknownIndex];;
-  float unknown_score_f =
-      (unknown_score - output->params.zero_point) * output->params.scale;
+  // Process inference for the two labels: bird and not_bird.
+  const float bird_score = GetScoreFloat(output, kBirdIndex);
+  const float not_bird_score = GetScoreFloat(output, kNotBirdIndex);
 
-  int8_t laptop_score = output->data.uint8[kLaptopIndex];
-  float laptop_score_f =
-      (laptop_score - output->params.zero_point) * output->params.scale;
-      
-  int8_t cup_score = output->data.uint8[kCupIndex];
-  float cup_score_f =
-      (cup_score - output->params.zero_point) * output->params.scale;
-  // END TODO 1 ----------------------------------------------------------------
-
-  // Respond to detection
-  RespondToDetection(cup_score_f, laptop_score_f, unknown_score_f);
+  // Respond to detection.
+  RespondToDetection(bird_score, not_bird_score);
 
   // Add a recognition cooldown to reduce capture/inference frequency.
   vTaskDelay(pdMS_TO_TICKS(2000));
