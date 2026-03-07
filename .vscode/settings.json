@@ -1,0 +1,12 @@
+{
+    "idf.currentSetup": "/home/andrej/esp/v5.5.1/esp-idf",
+    "idf.flashType": "UART",
+    "idf.port": "/dev/ttyACM0",
+    "idf.openOcdConfigs": [
+        "board/esp32s3-builtin.cfg"
+    ],
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32s3"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/g++-13"
+}

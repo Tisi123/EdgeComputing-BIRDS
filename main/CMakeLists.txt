@@ -1,0 +1,25 @@
+idf_component_register(SRCS
+    "main.c"
+    "wifi_ap.c"
+    "http_server.c"
+    "bird_detection_storage.c"
+    "app_camera_esp.c"
+    "image_provider.cc"
+    "main_functions.cc"
+    "model_settings.cc"
+    "detection_responder.cc"
+    "object_detection_model.cc"
+    INCLUDE_DIRS "."
+    REQUIRES
+        nvs_flash
+        esp_netif
+        esp_event
+        esp_wifi
+        esp_http_server
+        esp_timer
+        esp_psram
+        espressif__esp32-camera
+        espressif__esp-tflite-micro
+        fatfs
+        sdmmc
+        esp_driver_sdmmc)
