@@ -8,7 +8,7 @@ idf_component_register(SRCS
     "main_functions.cc"
     "model_settings.cc"
     "detection_responder.cc"
-    "object_detection_model.cc"
+    "bird_detector_model.cc"
     INCLUDE_DIRS "."
     REQUIRES
         nvs_flash

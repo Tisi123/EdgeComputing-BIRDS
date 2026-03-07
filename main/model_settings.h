@@ -28,10 +28,9 @@ constexpr int kNumChannels = 1;
 constexpr int kMaxImageSize = kNumCols * kNumRows * kNumChannels;
 
 // TODO: Edit the category and make the corresponding index
-constexpr int kCategoryCount = 3;
-constexpr int kCupIndex = 0;
-constexpr int kLaptopIndex = 1;
-constexpr int kUnknownIndex = 2;
+constexpr int kCategoryCount = 2;
+constexpr int kBirdIndex = 0;
+constexpr int kNotBirdIndex = 1;
 extern const char* kCategoryLabels[kCategoryCount];
 
 // END TODO ----------------------------------------------------------------

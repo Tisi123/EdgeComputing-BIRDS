@@ -21,12 +21,9 @@ limitations under the License.
 
 #include "tensorflow/lite/c/common.h"
 
-// Called every time the results of a OBJECT detection run are available. The
-// `OBJECT_score` has the numerical confidence that the captured image contains
-// a OBJECT, and `no_OBJECT_score` has the numerical confidence that the image
-// does not contain a OBJECT. Typically if OBJECT_score > no OBJECT score, the
-// image is considered to contain a OBJECT.  This threshold may be adjusted for
-// particular applications.
-void RespondToDetection(float cup_score, float laptop_score, float unknown_score);
+// Called every time the results of a detection run are available.
+// `bird_score` is the model confidence for label "bird",
+// `not_bird_score` is the model confidence for label "not_bird".
+void RespondToDetection(float bird_score, float not_bird_score);
 
 #endif  // TENSORFLOW_LITE_MICRO_EXAMPLES_OBJECT_DETECTION_DETECTION_RESPONDER_H_

@@ -17,8 +17,7 @@ limitations under the License.
 
 const char* kCategoryLabels[kCategoryCount] = {
     // TODO 1: Update the code to handle the 3 classes: cup, laptop, unknown -----
-    "cup",
-    "laptop",
-    "unknown"
+    "bird",
+    "not_bird"
     // END TODO 1 ----------------------------------------------------------------
 };
