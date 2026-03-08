@@ -27,6 +27,7 @@ limitations under the License.
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include <new>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
 #include <esp_log.h>
@@ -61,6 +62,8 @@ namespace
   const tflite::Model *model = nullptr;
   tflite::MicroInterpreter *interpreter = nullptr;
   TfLiteTensor *input = nullptr;
+  bool g_inference_ready = false;
+  bool g_ops_registered = false;
 
   // In order to use optimized tensorflow lite kernels, a signed int8_t quantized
   // model is preferred over the legacy unsigned model format. This means that
@@ -75,13 +78,16 @@ namespace
   constexpr int scratchBufSize = 0;
 #endif
   // An area of memory to use for input, output, and intermediate arrays.
-  constexpr int kTensorArenaSize = 81 * 1024 + scratchBufSize;
-  //constexpr int kTensorArenaSize = 150 * 1024 + scratchBufSize;
+  // Model currently requires significantly more than 100 KB at allocation time.
+  constexpr int kTensorArenaSize = 520 * 1024 + scratchBufSize;
   static uint8_t *tensor_arena; //[kTensorArenaSize]; // Maybe we should move this to external
+  alignas(tflite::MicroInterpreter) static uint8_t interpreter_buffer[sizeof(tflite::MicroInterpreter)];
 } // namespace
 
 void setup()
 {
+  g_inference_ready = false;
+
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
   model = tflite::GetModel(bird_detector_model);
@@ -95,7 +101,11 @@ void setup()
 
   if (tensor_arena == NULL)
   {
-    tensor_arena = (uint8_t *)heap_caps_malloc(kTensorArenaSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    // Prefer PSRAM for arena size; fallback to internal RAM.
+    tensor_arena = (uint8_t *)heap_caps_malloc(kTensorArenaSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (tensor_arena == NULL) {
+      tensor_arena = (uint8_t *)heap_caps_malloc(kTensorArenaSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    }
   }
   if (tensor_arena == NULL)
   {
@@ -111,37 +121,40 @@ void setup()
   //
   // tflite::AllOpsResolver resolver;
   // NOLINTNEXTLINE(runtime-global-variables)
-  static tflite::MicroMutableOpResolver<16> micro_op_resolver;
+  static tflite::MicroMutableOpResolver<17> micro_op_resolver;
 
-  // Include only the necessary operations
-  micro_op_resolver.AddConv2D();         // Conv2D layer
-  micro_op_resolver.AddFullyConnected(); // Dense layer
-  micro_op_resolver.AddMaxPool2D();      // MaxPooling2D layer
-  micro_op_resolver.AddSoftmax();        // Softmax activation
-  micro_op_resolver.AddQuantize();       // Quantize operation (if using quantized model)
-  micro_op_resolver.AddDequantize();     // Dequantize operation (if using quantized model)
-  micro_op_resolver.AddDepthwiseConv2D(); // DepthwiseConv2D layer
-  micro_op_resolver.AddReshape();         // Reshape layer
-  micro_op_resolver.AddAveragePool2D();  // AveragePooling2D layer
-  // Add operations for BatchNormalization layers
-  micro_op_resolver.AddMul();   // Used in BatchNormalization
-  micro_op_resolver.AddAdd();   // Used in BatchNormalization
-  micro_op_resolver.AddSub();   // Used in BatchNormalization
-  micro_op_resolver.AddDiv();   // Used in BatchNormalization
-  micro_op_resolver.AddMean();  // Used in BatchNormalization
-  micro_op_resolver.AddRsqrt(); // Used in BatchNormalization
+  if (!g_ops_registered) {
+    // Include only the necessary operations.
+    micro_op_resolver.AddConv2D();          // Conv2D layer
+    micro_op_resolver.AddFullyConnected();  // Dense layer
+    micro_op_resolver.AddMaxPool2D();       // MaxPooling2D layer
+    micro_op_resolver.AddSoftmax();         // Softmax activation
+    micro_op_resolver.AddLogistic();        // Sigmoid activation
+    micro_op_resolver.AddQuantize();        // Quantize operation
+    micro_op_resolver.AddDequantize();      // Dequantize operation
+    micro_op_resolver.AddDepthwiseConv2D(); // DepthwiseConv2D layer
+    micro_op_resolver.AddReshape();         // Reshape layer
+    micro_op_resolver.AddAveragePool2D();   // AveragePooling2D layer
+    // Ops used by folded/non-folded normalization arithmetic.
+    micro_op_resolver.AddMul();
+    micro_op_resolver.AddAdd();
+    micro_op_resolver.AddSub();
+    micro_op_resolver.AddDiv();
+    micro_op_resolver.AddMean();
+    micro_op_resolver.AddRsqrt();
+    g_ops_registered = true;
+  }
 
-  // Build an interpreter to run the model with.
-  // NOLINTNEXTLINE(runtime-global-variables)
-  static tflite::MicroInterpreter static_interpreter(
+  // Build (or rebuild) the interpreter each setup attempt.
+  interpreter = new (interpreter_buffer) tflite::MicroInterpreter(
       model, micro_op_resolver, tensor_arena, kTensorArenaSize);
-  interpreter = &static_interpreter;
 
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk)
   {
     MicroPrintf("AllocateTensors() failed");
+    input = nullptr;
     return;
   }
 
@@ -154,15 +167,33 @@ void setup()
   if (init_status != kTfLiteOk)
   {
     MicroPrintf("InitCamera failed\n");
+    input = nullptr;
     return;
   }
+
+#if DISPLAY_SUPPORT
+  create_gui();
 #endif
+#endif
+
+  g_inference_ready = true;
+}
+
+bool inference_ready()
+{
+  return g_inference_ready && (interpreter != nullptr) && (input != nullptr);
 }
 
 #ifndef CLI_ONLY_INFERENCE
 // The name of this function is important for Arduino compatibility.
 void loop()
 {
+  if (!inference_ready()) {
+    MicroPrintf("Inference setup not ready; retrying setup.");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    return;
+  }
+
   // Get image from provider.
   if (kTfLiteOk != GetImage(kNumCols, kNumRows, kNumChannels, input->data.int8))
   {
@@ -185,6 +216,6 @@ void loop()
   RespondToDetection(bird_score, not_bird_score);
 
   // Add a recognition cooldown to reduce capture/inference frequency.
-  vTaskDelay(pdMS_TO_TICKS(2000));
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }
 #endif

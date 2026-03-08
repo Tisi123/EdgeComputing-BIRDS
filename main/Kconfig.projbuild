@@ -1,0 +1,59 @@
+menu "Application Configuration"
+
+config TFLITE_USE_BSP
+    bool
+    default n
+
+choice BSP_SUPPORT
+    bool "Select BSP"
+    default TFLITE_USE_BSP_NONE
+    help
+       Select Board Support Package for your Board.
+       Make sure you select the correct target with idf.py set-target
+       BEFORE you set the BSP.
+
+    config TFLITE_USE_BSP_S3_EYE
+        bool "ESP32-S3-EYE"
+        select TFLITE_USE_BSP
+    config TFLITE_USE_BSP_KORVO_2
+        bool "ESP32-S3-KORVO-2"
+        select TFLITE_USE_BSP
+    config TFLITE_USE_BSP_KALUGA
+        bool "ESP32-S2-KALUGA-KIT"
+        select TFLITE_USE_BSP
+    config TFLITE_USE_BSP_NONE
+        bool "None"
+endchoice
+
+menu "Camera Configuration"
+depends on !TFLITE_USE_BSP
+
+choice CAMERA_MODULE
+    bool "Select Camera Pinout"
+    default CAMERA_MODULE_ESP_S3_EYE
+    help
+        Select Camera Pinout.
+
+    config CAMERA_MODULE_WROVER_KIT
+        bool "WROVER-KIT With OV2640 Module"
+    config CAMERA_MODULE_ESP_EYE
+        bool "ESP-EYE DevKit"
+    config CAMERA_MODULE_ESP_S2_KALUGA
+        bool "ESP32-S2-Kaluga-1 V1.3"
+    config CAMERA_MODULE_ESP_S3_EYE
+        bool "ESP-S3-EYE DevKit"
+    config CAMERA_MODULE_ESP32_CAM_BOARD
+        bool "ESP32 Camera Development Board"
+    config CAMERA_MODULE_M5STACK_PSRAM
+        bool "M5Stack Camera With PSRAM"
+    config CAMERA_MODULE_M5STACK_WIDE
+        bool "M5Stack Camera F (Wide)"
+    config CAMERA_MODULE_AI_THINKER
+        bool "ESP32-CAM by AI-Thinker"
+    config CAMERA_MODULE_CUSTOM
+        bool "Custom Camera Pinout"
+endchoice
+
+endmenu
+
+endmenu

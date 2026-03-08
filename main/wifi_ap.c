@@ -13,8 +13,8 @@
 #define WIFI_PASS "bird1234"
 
 // Set these to your home/office router credentials.
-#define ROUTER_SSID ""
-#define ROUTER_PASS ""
+#define ROUTER_SSID "FRITZ!Box 7590 UB"
+#define ROUTER_PASS "68028720539327406597"
 
 static const char *TAG = "wifi_ap";
 static bool s_wifi_inited = false;

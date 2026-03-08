@@ -26,4 +26,7 @@ limitations under the License.
 // `not_bird_score` is the model confidence for label "not_bird".
 void RespondToDetection(float bird_score, float not_bird_score);
 
+// Initializes GUI components when display support is enabled.
+void create_gui();
+
 #endif  // TENSORFLOW_LITE_MICRO_EXAMPLES_OBJECT_DETECTION_DETECTION_RESPONDER_H_

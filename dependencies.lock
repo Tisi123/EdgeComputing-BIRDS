@@ -1,28 +1,87 @@
 dependencies:
-  espressif/esp-nn:
-    component_hash: f4633a02f05fef53b80de65ade1f733ebdef637e4c8b8be4eb11f5e27f6d9f3e
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.2'
+  espressif/button:
+    dependencies: []
     source:
-      registry_url: https://components.espressif.com/
-      type: service
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__button
+      type: local
+    version: 3.5.0
+  espressif/cmake_utilities:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__cmake_utilities
+      type: local
+    version: 0.5.3
+  espressif/esp-nn:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp-nn
+      type: local
     version: 1.1.2
+  espressif/esp-tflite-micro:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp-tflite-micro
+      type: local
+    version: 1.3.5
+  espressif/esp32-camera:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp32-camera
+      type: local
+    version: 2.0.16
+  espressif/esp32_s3_eye:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp32_s3_eye
+      type: local
+    version: 4.0.2
+  espressif/esp_codec_dev:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp_codec_dev
+      type: local
+    version: 1.3.6
   espressif/esp_jpeg:
     dependencies: []
     source:
-      path: /home/andrej/birdhouse_server/managed_components/espressif__esp_jpeg
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp_jpeg
       type: local
     version: 1.3.1
+  espressif/esp_lvgl_port:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__esp_lvgl_port
+      type: local
+    version: 2.7.2
+  espressif/qma6100p:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/espressif__qma6100p
+      type: local
+    version: 2.0.1
   idf:
     source:
       type: idf
     version: 5.5.1
+  lvgl/lvgl:
+    dependencies: []
+    source:
+      path: /home/andrej/birdhouse_server/birds/managed_components/lvgl__lvgl
+      type: local
+    version: 9.5.0
 direct_dependencies:
+- espressif/button
+- espressif/cmake_utilities
 - espressif/esp-nn
+- espressif/esp-tflite-micro
+- espressif/esp32-camera
+- espressif/esp32_s3_eye
+- espressif/esp_codec_dev
 - espressif/esp_jpeg
+- espressif/esp_lvgl_port
+- espressif/qma6100p
 - idf
-manifest_hash: d865282a8209ee9b55dd51a431469e090ebf42f147e3f4183836fc77b5208e4f
+- lvgl/lvgl
+manifest_hash: 40e5f8974424e39b54dda67478bde83f826ef21e50a7aebbf745fbfa0a978e6b
 target: esp32s3
 version: 2.0.0

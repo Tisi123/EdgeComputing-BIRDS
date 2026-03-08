@@ -242,7 +242,12 @@ static void tf_inference_task(void *arg)
         if (!tf_ready) {
             ESP_LOGI(TAG, "Starting TensorFlow setup");
             setup();
-            tf_ready = true;
+            tf_ready = inference_ready();
+            if (!tf_ready) {
+                ESP_LOGE(TAG, "TensorFlow setup failed, retrying in 2 seconds");
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                continue;
+            }
         }
 
         loop();

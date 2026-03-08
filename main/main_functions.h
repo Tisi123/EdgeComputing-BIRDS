@@ -30,6 +30,9 @@ void setup();
 // compatibility.
 void loop();
 
+// Returns true when TensorFlow setup completed successfully.
+bool inference_ready();
+
 #ifdef __cplusplus
 }
 #endif
