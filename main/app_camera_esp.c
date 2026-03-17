@@ -69,10 +69,10 @@ int app_camera_init() {
   config.fb_location = CAMERA_FB_IN_DRAM;
 #endif // CONFIG_TFLITE_USE_BSP
 
-  // Pixel format and frame size are specific configurations options for this application.
-  // Frame size must be 96x96 pixels to match the trained model.
-  // Pixel format defaults to grayscale to match the trained model.
-  // With display support enabled, the pixel format is RGB565 to match the display. The frame is converted to grayscale before it is passed to the trained model.
+  // Pixel format and frame size are specific configuration options for this application.
+  // Frame size must stay 96x96 to match the trained model.
+  // The camera captures RGB565 frames; the image provider converts them into the
+  // model's RGB int8 input tensor while also keeping an RGB565 copy for display/storage.
   config.pixel_format = CAMERA_PIXEL_FORMAT;
   config.frame_size = CAMERA_FRAME_SIZE;
 

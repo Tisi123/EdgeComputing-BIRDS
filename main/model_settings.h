@@ -27,12 +27,9 @@ constexpr int kNumChannels = 3;
 
 constexpr int kMaxImageSize = kNumCols * kNumRows * kNumChannels;
 
-// TODO: Edit the category and make the corresponding index
-constexpr int kCategoryCount = 2;
-constexpr int kBirdIndex = 0;
-constexpr int kNotBirdIndex = 1;
-extern const char* kCategoryLabels[kCategoryCount];
-
-// END TODO ----------------------------------------------------------------
+// The deployed V4 model is a binary classifier with a single output scalar:
+// output[0] = P(bird). Any "not_bird" score shown in the UI is derived as
+// (1.0f - bird_score), not read from a second output slot.
+constexpr int kBirdOutputIndex = 0;
 
 #endif  // TENSORFLOW_LITE_MICRO_EXAMPLES_PERSON_DETECTION_MODEL_SETTINGS_H_

@@ -80,8 +80,11 @@ void *image_provider_get_rgb565_buf()
 }
 
 TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* image_data) {
-  (void)channels;
 #if ESP_CAMERA_SUPPORTED
+  if (channels != kNumChannels) {
+    ESP_LOGE(TAG, "Unexpected channel count: %d", channels);
+    return kTfLiteError;
+  }
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) {
     ESP_LOGE(TAG, "Camera capture failed");
@@ -102,8 +105,11 @@ TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* i
       uint8_t g = ((hb & 0x07) << 5) | ((lb & 0xE0) >> 3);
       uint8_t b = (hb & 0xF8);
 
-      int8_t grey_pixel = ((305 * r + 600 * g + 119 * b) >> 10) - 128;
-      image_data[i * kNumCols + j] = grey_pixel;
+      const int pixel_index = i * kNumCols + j;
+      const int base = pixel_index * kNumChannels;
+      image_data[base + 0] = static_cast<int8_t>(r) - 128;
+      image_data[base + 1] = static_cast<int8_t>(g) - 128;
+      image_data[base + 2] = static_cast<int8_t>(b) - 128;
 
       display_buf[2 * i * kNumCols * 2 + 2 * j] = pixel;
       display_buf[2 * i * kNumCols * 2 + 2 * j + 1] = pixel;
@@ -113,8 +119,18 @@ TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* i
   }
 #else // DISPLAY_SUPPORT
   MicroPrintf("Image Captured\n");
-  for (int i = 0; i < image_width * image_height; i++) {
-    image_data[i] = ((uint8_t *) fb->buf)[i] ^ 0x80;
+  for (int i = 0; i < image_width * image_height; ++i) {
+    const uint16_t pixel = reinterpret_cast<uint16_t*>(fb->buf)[i];
+    uint8_t hb = pixel & 0xFF;
+    uint8_t lb = pixel >> 8;
+    uint8_t r = (lb & 0x1F) << 3;
+    uint8_t g = ((hb & 0x07) << 5) | ((lb & 0xE0) >> 3);
+    uint8_t b = (hb & 0xF8);
+
+    const int base = i * kNumChannels;
+    image_data[base + 0] = static_cast<int8_t>(r) - 128;
+    image_data[base + 1] = static_cast<int8_t>(g) - 128;
+    image_data[base + 2] = static_cast<int8_t>(b) - 128;
   }
 #endif // DISPLAY_SUPPORT
 

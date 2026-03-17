@@ -27,6 +27,7 @@ limitations under the License.
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include <cstdio>
 #include <new>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
@@ -53,6 +54,49 @@ float GetScoreFloat(const TfLiteTensor* tensor, int index) {
     default:
       return 0.0f;
   }
+}
+
+bool HasDims(const TfLiteTensor* tensor,
+             int expected_dims_count,
+             const int* expected_dims) {
+  if (tensor == nullptr || tensor->dims == nullptr) {
+    return false;
+  }
+  if (tensor->dims->size != expected_dims_count) {
+    return false;
+  }
+  for (int i = 0; i < expected_dims_count; ++i) {
+    if (tensor->dims->data[i] != expected_dims[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void LogTensorInfo(const char* name, const TfLiteTensor* tensor) {
+  if (tensor == nullptr || tensor->dims == nullptr) {
+    MicroPrintf("%s tensor is null", name);
+    return;
+  }
+
+  char dims_buf[64];
+  int offset = 0;
+  offset += snprintf(dims_buf + offset, sizeof(dims_buf) - offset, "[");
+  for (int i = 0; i < tensor->dims->size && offset < static_cast<int>(sizeof(dims_buf)); ++i) {
+    offset += snprintf(dims_buf + offset,
+                       sizeof(dims_buf) - offset,
+                       "%s%d",
+                       (i == 0) ? "" : ",",
+                       tensor->dims->data[i]);
+  }
+  snprintf(dims_buf + offset, sizeof(dims_buf) - offset, "]");
+
+  MicroPrintf("%s tensor: type=%d dims=%s scale=%f zero_point=%d",
+              name,
+              tensor->type,
+              dims_buf,
+              static_cast<double>(tensor->params.scale),
+              tensor->params.zero_point);
 }
 }  // namespace
 
@@ -161,6 +205,35 @@ void setup()
 
   // Get information about the memory area to use for the model's input.
   input = interpreter->input(0);
+  TfLiteTensor* output = interpreter->output(0);
+
+  LogTensorInfo("Input", input);
+  LogTensorInfo("Output", output);
+
+  const int expected_input_dims[] = {1, kNumRows, kNumCols, kNumChannels};
+  if (!HasDims(input, 4, expected_input_dims)) {
+    MicroPrintf("Unexpected input tensor shape; expected [1,%d,%d,%d]",
+                kNumRows, kNumCols, kNumChannels);
+    input = nullptr;
+    return;
+  }
+
+  bool output_ok = false;
+  if (output != nullptr && output->dims != nullptr) {
+    const int output_dims_count = output->dims->size;
+    if (output_dims_count == 2) {
+      const int expected_output_dims[] = {1, 1};
+      output_ok = HasDims(output, 2, expected_output_dims);
+    } else if (output_dims_count == 1) {
+      const int expected_output_dims[] = {1};
+      output_ok = HasDims(output, 1, expected_output_dims);
+    }
+  }
+  if (!output_ok) {
+    MicroPrintf("Unexpected output tensor shape; expected scalar bird probability");
+    input = nullptr;
+    return;
+  }
 
 #ifndef CLI_ONLY_INFERENCE
   // Initialize Camera
@@ -211,9 +284,9 @@ void loop()
 
   TfLiteTensor *output = interpreter->output(0);
 
-  // Process inference for the two labels: bird and not_bird.
-  const float bird_score = GetScoreFloat(output, kBirdIndex);
-  const float not_bird_score = GetScoreFloat(output, kNotBirdIndex);
+  // V4 exports a single scalar output: P(bird).
+  const float bird_score = GetScoreFloat(output, kBirdOutputIndex);
+  const float not_bird_score = 1.0f - bird_score;
 
   // Respond to detection.
   const uint8_t *image_bytes = reinterpret_cast<const uint8_t *>(g_last_image_rgb565);

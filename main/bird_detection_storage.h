@@ -24,11 +24,11 @@ void bird_storage_init(void);
 void bird_storage_add_detection(const char *species, float confidence, int64_t timestamp);
 
 /**
- * Add a bird detection with an attached 96x96 grayscale image.
+ * Add a bird detection with an attached 96x96 RGB565 image.
  * @param species Bird species name
  * @param confidence Detection confidence (0.0 - 1.0)
  * @param timestamp Unix timestamp
- * @param image Grayscale image bytes (96x96)
+ * @param image RGB565 image bytes (96x96)
  * @param image_len Size of image buffer in bytes
  */
 void bird_storage_add_detection_with_image(const char *species,

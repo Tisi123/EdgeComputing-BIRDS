@@ -24,9 +24,9 @@ limitations under the License.
 #include <stddef.h>
 
 // Called every time the results of a detection run are available.
-// `bird_score` is the model confidence for label "bird",
-// `not_bird_score` is the model confidence for label "not_bird".
-// `image` is the latest 96x96 grayscale frame (size `image_len`).
+// `bird_score` is the model output probability for "bird".
+// `not_bird_score` is derived in firmware as (1.0f - bird_score) for UI/logs.
+// `image` is the latest 96x96 RGB565 frame (size `image_len`) used for storage.
 void RespondToDetection(float bird_score,
                         float not_bird_score,
                         const uint8_t *image,
