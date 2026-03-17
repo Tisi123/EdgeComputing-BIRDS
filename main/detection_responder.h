@@ -20,11 +20,17 @@ limitations under the License.
 #define TENSORFLOW_LITE_MICRO_EXAMPLES_OBJECT_DETECTION_DETECTION_RESPONDER_H_
 
 #include "tensorflow/lite/c/common.h"
+#include <stdint.h>
+#include <stddef.h>
 
 // Called every time the results of a detection run are available.
 // `bird_score` is the model confidence for label "bird",
 // `not_bird_score` is the model confidence for label "not_bird".
-void RespondToDetection(float bird_score, float not_bird_score);
+// `image` is the latest 96x96 grayscale frame (size `image_len`).
+void RespondToDetection(float bird_score,
+                        float not_bird_score,
+                        const uint8_t *image,
+                        size_t image_len);
 
 // Initializes GUI components when display support is enabled.
 void create_gui();

@@ -30,6 +30,7 @@ limitations under the License.
 static const char* TAG = "app_camera";
 
 static uint16_t *display_buf; // buffer to hold data to be sent to display
+static uint16_t *rgb565_buf;  // 96x96 RGB565 buffer for storage
 
 TfLiteStatus InitCamera() {
 #if CLI_ONLY_INFERENCE
@@ -43,6 +44,14 @@ TfLiteStatus InitCamera() {
   }
   if (display_buf == NULL) {
     ESP_LOGE(TAG, "Couldn't allocate display buffer");
+    return kTfLiteError;
+  }
+  if (rgb565_buf == NULL) {
+    rgb565_buf = (uint16_t *) heap_caps_malloc(96 * 96 * sizeof(uint16_t),
+                                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
+  if (rgb565_buf == NULL) {
+    ESP_LOGE(TAG, "Couldn't allocate RGB565 buffer");
     return kTfLiteError;
   }
 #endif // DISPLAY_SUPPORT
@@ -65,6 +74,11 @@ void *image_provider_get_display_buf()
   return (void *) display_buf;
 }
 
+void *image_provider_get_rgb565_buf()
+{
+  return (void *) rgb565_buf;
+}
+
 TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* image_data) {
   (void)channels;
 #if ESP_CAMERA_SUPPORTED
@@ -78,6 +92,9 @@ TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* i
   for (int i = 0; i < kNumRows; i++) {
     for (int j = 0; j < kNumCols; j++) {
       uint16_t pixel = ((uint16_t *) (fb->buf))[i * kNumCols + j];
+      if (rgb565_buf) {
+        rgb565_buf[i * kNumCols + j] = pixel;
+      }
 
       uint8_t hb = pixel & 0xFF;
       uint8_t lb = pixel >> 8;

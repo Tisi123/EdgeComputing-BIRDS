@@ -23,6 +23,9 @@ limitations under the License.
 
 void *image_provider_get_display_buf();
 
+// Returns latest 96x96 RGB565 frame (or NULL if not available).
+void *image_provider_get_rgb565_buf();
+
 TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* image_data);
 
 TfLiteStatus InitCamera();

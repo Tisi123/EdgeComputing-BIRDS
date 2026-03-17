@@ -64,6 +64,7 @@ namespace
   TfLiteTensor *input = nullptr;
   bool g_inference_ready = false;
   bool g_ops_registered = false;
+  uint16_t *g_last_image_rgb565 = nullptr;
 
   // In order to use optimized tensorflow lite kernels, a signed int8_t quantized
   // model is preferred over the legacy unsigned model format. This means that
@@ -199,6 +200,8 @@ void loop()
   {
     MicroPrintf("Image capture failed.");
   }
+  // Cache the latest 96x96 RGB565 image for storage (if available).
+  g_last_image_rgb565 = static_cast<uint16_t *>(image_provider_get_rgb565_buf());
 
   // Run the model on this input and make sure it succeeds.
   if (kTfLiteOk != interpreter->Invoke())
@@ -213,9 +216,11 @@ void loop()
   const float not_bird_score = GetScoreFloat(output, kNotBirdIndex);
 
   // Respond to detection.
-  RespondToDetection(bird_score, not_bird_score);
+  const uint8_t *image_bytes = reinterpret_cast<const uint8_t *>(g_last_image_rgb565);
+  const size_t image_len = g_last_image_rgb565 ? (kNumCols * kNumRows * sizeof(uint16_t)) : 0;
+  RespondToDetection(bird_score, not_bird_score, image_bytes, image_len);
 
-  // Add a recognition cooldown to reduce capture/inference frequency.
-  vTaskDelay(pdMS_TO_TICKS(1000));
+  // Yield briefly to avoid starving other tasks.
+  vTaskDelay(1);
 }
 #endif

@@ -25,7 +25,10 @@ extern "C" {
 }
 
 // Confidence threshold for storing detections
-#define CONFIDENCE_THRESHOLD 0.3f
+// preventing storing too many false positives and filling up storage with low-confidence detections.
+#define CONFIDENCE_THRESHOLD 0.5f
+// Minimum time between stored detections (ms) to avoid duplicates.
+#define STORE_COOLDOWN_MS 300
 
 #if DISPLAY_SUPPORT
 void create_gui() {
@@ -76,7 +79,10 @@ void create_gui() {
 void create_gui() {}
 #endif  // DISPLAY_SUPPORT
 
-void RespondToDetection(float bird_score, float not_bird_score) {
+void RespondToDetection(float bird_score,
+                        float not_bird_score,
+                        const uint8_t *image,
+                        size_t image_len) {
 #if DISPLAY_SUPPORT
     if (!camera_canvas || !status_indicator || !label) {
         create_gui();
@@ -112,11 +118,16 @@ void RespondToDetection(float bird_score, float not_bird_score) {
     bsp_display_unlock();
 #endif  // DISPLAY_SUPPORT
 
-    // Only store when the model predicts "bird" with at least 50% confidence.
-    if (bird_score >= CONFIDENCE_THRESHOLD) {
+    // Only store when the model predicts "bird" above threshold,
+    // and not more often than STORE_COOLDOWN_MS.
+    static int64_t last_store_time_ms = 0;
+    const int64_t now_ms = esp_timer_get_time() / 1000;
+    if (bird_score >= CONFIDENCE_THRESHOLD &&
+        (now_ms - last_store_time_ms) >= STORE_COOLDOWN_MS) {
         time_t timestamp;
         time(&timestamp);
-        bird_storage_add_detection("bird", bird_score, timestamp);
+        bird_storage_add_detection_with_image("bird", bird_score, timestamp, image, image_len);
+        last_store_time_ms = now_ms;
 
         MicroPrintf("Bird detected: bird (%.2f%%), not_bird=%.2f%% - Buffered: %d - Timestamp: %lld",
                     bird_score * 100.0f, not_bird_score * 100.0f,

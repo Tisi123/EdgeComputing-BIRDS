@@ -5,6 +5,7 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 #include "driver/gpio.h"
+#include "img_converters.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -17,10 +18,15 @@
 
 static const char *TAG = "bird_storage";
 
-#define MAX_DETECTIONS 50
+#define MAX_DETECTIONS 10
 #define MAX_SPECIES_LEN 32
 #define SDCARD_MOUNT_POINT "/sd"
 #define BIRDS_FILE SDCARD_MOUNT_POINT"/birds.txt"
+#define IMAGE_WIDTH 96
+#define IMAGE_HEIGHT 96
+#define IMAGE_SIZE (IMAGE_WIDTH * IMAGE_HEIGHT * 2)  // RGB565
+#define IMAGES_DIR SDCARD_MOUNT_POINT"/img"
+#define JPEG_QUALITY 60
 
 // SD card pins (shared with camera on ESP32-S3-EYE)
 #define SD_CLK  GPIO_NUM_39
@@ -31,10 +37,12 @@ typedef struct {
     char species[MAX_SPECIES_LEN];
     float confidence;
     time_t timestamp;
+    bool has_image;
+    uint8_t image[IMAGE_SIZE];
 } bird_detection_t;
 
 static struct {
-    bird_detection_t detections[MAX_DETECTIONS];
+    bird_detection_t *detections;
     int count;
     SemaphoreHandle_t mutex;
     sdmmc_card_t *card;
@@ -73,13 +81,35 @@ void bird_storage_init(void)
 {
     memset(&s_storage, 0, sizeof(s_storage));
     s_storage.mutex = xSemaphoreCreateMutex();
+    s_storage.detections = heap_caps_malloc(sizeof(bird_detection_t) * MAX_DETECTIONS,
+                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_storage.detections) {
+        s_storage.detections = heap_caps_malloc(sizeof(bird_detection_t) * MAX_DETECTIONS,
+                                                MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    }
+    if (!s_storage.detections) {
+        ESP_LOGE(TAG, "Failed to allocate detection buffer");
+    }
     ESP_LOGI(TAG, "Bird detection storage initialized");
 }
 
 void bird_storage_add_detection(const char *species, float confidence, time_t timestamp)
 {
+    bird_storage_add_detection_with_image(species, confidence, timestamp, NULL, 0);
+}
+
+void bird_storage_add_detection_with_image(const char *species,
+                                           float confidence,
+                                           time_t timestamp,
+                                           const uint8_t *image,
+                                           size_t image_len)
+{
     if (!s_storage.mutex) {
         ESP_LOGE(TAG, "Storage not initialized");
+        return;
+    }
+    if (!s_storage.detections) {
+        ESP_LOGE(TAG, "Storage buffer not allocated");
         return;
     }
     
@@ -97,6 +127,11 @@ void bird_storage_add_detection(const char *species, float confidence, time_t ti
             det->species[MAX_SPECIES_LEN - 1] = '\0';
             det->confidence = confidence;
             det->timestamp = timestamp;
+            det->has_image = false;
+            if (image && image_len >= IMAGE_SIZE) {
+                memcpy(det->image, image, IMAGE_SIZE);
+                det->has_image = true;
+            }
             s_storage.count++;
             
             ESP_LOGI(TAG, "Added detection #%d: %s (%.2f)", 
@@ -271,6 +306,15 @@ esp_err_t bird_storage_flush_to_sd(void)
     // Give filesystem time to stabilize
     vTaskDelay(pdMS_TO_TICKS(50));
     
+    // Ensure images directory exists
+    struct stat st;
+    if (stat(IMAGES_DIR, &st) != 0) {
+        if (mkdir(IMAGES_DIR, 0755) != 0 && errno != EEXIST) {
+            ESP_LOGW(TAG, "Failed to create images directory %s (errno: %d - %s)",
+                     IMAGES_DIR, errno, strerror(errno));
+        }
+    }
+
     // Open file for appending
     ESP_LOGI(TAG, "Opening file: %s", BIRDS_FILE);
     FILE *f = fopen(BIRDS_FILE, "a");
@@ -304,12 +348,51 @@ esp_err_t bird_storage_flush_to_sd(void)
         localtime_r(&timestamp_sec, &timeinfo);
         strftime(iso_time, sizeof(iso_time), "%Y-%m-%dT%H:%M:%S", &timeinfo);
         
+        char image_file[64] = {0};
+        if (det->has_image) {
+            // FATFS without LFN requires 8.3 filenames. Use 8-hex timestamp.
+            snprintf(image_file, sizeof(image_file),
+                     IMAGES_DIR"/%08lx.jpg",
+                     (unsigned long)det->timestamp);
+
+            uint8_t *jpg_out = NULL;
+            size_t jpg_len = 0;
+            bool ok = fmt2jpg(det->image, IMAGE_SIZE,
+                              IMAGE_WIDTH, IMAGE_HEIGHT,
+                              PIXFORMAT_RGB565,
+                              JPEG_QUALITY, &jpg_out, &jpg_len);
+            if (ok && jpg_out && jpg_len > 0) {
+                FILE *img = fopen(image_file, "wb");
+                if (img) {
+                    fwrite(jpg_out, 1, jpg_len, img);
+                    fclose(img);
+                } else {
+                    ESP_LOGW(TAG, "Failed to open image file %s (errno: %d - %s)",
+                             image_file, errno, strerror(errno));
+                    image_file[0] = '\0';
+                }
+                free(jpg_out);
+            } else {
+                ESP_LOGW(TAG, "JPEG encode failed for %s (ok=%d len=%zu)", image_file, ok, jpg_len);
+                image_file[0] = '\0';
+                if (jpg_out) {
+                    free(jpg_out);
+                }
+            }
+        }
+
         // Write JSON line
-        int written = fprintf(f, "{\"species\":\"%s\",\"confidence\":%.2f,\"timestamp\":%lld,\"datetime\":\"%s\"}\n",
+        int written = fprintf(f,
+                "{\"species\":\"%s\",\"confidence\":%.2f,\"timestamp\":%lld,\"datetime\":\"%s\"%s%s}\n",
                 det->species,
                 det->confidence,
                 det->timestamp,
-                iso_time);
+                iso_time,
+                image_file[0] ? ",\"image\":\"" : "",
+                image_file[0] ? image_file : "");
+        if (image_file[0]) {
+            fputc('"', f);
+        }
         
         if (written < 0) {
             ESP_LOGE(TAG, "Write error on detection %d (errno: %d)", i, errno);
@@ -354,11 +437,12 @@ size_t bird_storage_get_all_jsonl(char *buffer, size_t buffer_size)
             
             // Write JSON object followed by newline (JSONL format)
             offset += snprintf(buffer + offset, buffer_size - offset,
-                             "{\"species\":\"%s\",\"confidence\":%.2f,\"timestamp\":%lld,\"datetime\":\"%s\"}\n",
+                             "{\"species\":\"%s\",\"confidence\":%.2f,\"timestamp\":%lld,\"datetime\":\"%s\",\"has_image\":%s}\n",
                              det->species,
                              det->confidence,
                              det->timestamp,
-                             iso_time);
+                             iso_time,
+                             det->has_image ? "true" : "false");
         }
         
         xSemaphoreGive(s_storage.mutex);
