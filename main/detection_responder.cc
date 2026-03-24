@@ -26,7 +26,7 @@ extern "C" {
 
 // Confidence threshold applied to the single bird probability output.
 // Storage throttling is handled separately by STORE_COOLDOWN_MS.
-#define CONFIDENCE_THRESHOLD 0.5f
+#define CONFIDENCE_THRESHOLD 0.68f
 // Minimum time between stored detections (ms) to avoid duplicates.
 #define STORE_COOLDOWN_MS 200
 
