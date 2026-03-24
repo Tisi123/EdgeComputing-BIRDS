@@ -10,14 +10,22 @@
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
+#include "driver/gpio.h"
+#include "esp_camera.h"
 #include <time.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "esp_main.h"
+
+#if DISPLAY_SUPPORT
+#include "bsp/esp-bsp.h"
+#endif
 
 void wifi_init_softap(void);
 void wifi_sync_time_from_router_once(void);
 httpd_handle_t start_webserver(void);
+static void disable_http_services(void);
 
 static const char *TAG = "main";
 
@@ -27,6 +35,7 @@ static const char *TAG = "main";
 #define ACTIVE_END_MINUTE_UTC 10
 #define DEFAULT_HTTP_BOOT_GRACE_SECONDS (10 * 60) // 10 minutes grace period after boot to keep HTTP active for time sync
 #define SCHEDULE_TZ_OFFSET_HOURS 1
+#define DEEP_SLEEP_WIFI_DEINIT 0
 
 typedef struct {
     int start_hour_utc;
@@ -38,13 +47,13 @@ typedef struct {
 
 // HTTP windows (GMT+1 schedule): 07:55-08:00 and 17:00-17:05
 static time_window_utc_t s_http_windows[] = {
-    {.start_hour_utc = 7, .start_minute_utc = 55, .end_hour_utc = 8, .end_minute_utc = 0, .enabled = true},
-    {.start_hour_utc = 17, .start_minute_utc = 0, .end_hour_utc = 17, .end_minute_utc = 5, .enabled = true},
+    {.start_hour_utc = 7, .start_minute_utc = 55, .end_hour_utc = 8, .end_minute_utc = 0, .enabled = false},
+    {.start_hour_utc = 17, .start_minute_utc = 0, .end_hour_utc = 17, .end_minute_utc = 5, .enabled = false},
 };
 
 // Detection window (GMT+1 schedule): 08:00-17:00
 static time_window_utc_t s_detection_windows[] = {
-    {.start_hour_utc = 8, .start_minute_utc = 0, .end_hour_utc = 17, .end_minute_utc = 0, .enabled = true},
+    {.start_hour_utc = 8, .start_minute_utc = 0, .end_hour_utc = 9, .end_minute_utc = 0, .enabled = true},
 };
 
 static uint32_t s_http_boot_grace_seconds = DEFAULT_HTTP_BOOT_GRACE_SECONDS;
@@ -53,6 +62,46 @@ static httpd_handle_t s_http_server = NULL;
 static bool s_ap_running = false;
 static volatile bool s_detection_enabled = false;
 static bool is_clock_valid_utc(void);
+
+static void prepare_for_deep_sleep(void)
+{
+    // Stop network services to reduce draw.
+    disable_http_services();
+    esp_err_t wifi_stop_ret = esp_wifi_stop();
+    if (wifi_stop_ret != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_stop failed: %s", esp_err_to_name(wifi_stop_ret));
+    }
+#if DEEP_SLEEP_WIFI_DEINIT
+    esp_err_t wifi_deinit_ret = esp_wifi_deinit();
+    if (wifi_deinit_ret != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_deinit failed: %s", esp_err_to_name(wifi_deinit_ret));
+    }
+#endif
+
+#if ESP_CAMERA_SUPPORTED
+    // Release camera resources.
+    esp_err_t cam_ret = esp_camera_deinit();
+    if (cam_ret != ESP_OK) {
+        ESP_LOGW(TAG, "esp_camera_deinit failed: %s", esp_err_to_name(cam_ret));
+    }
+#endif
+
+#if DISPLAY_SUPPORT
+    // Turn off LCD backlight without relying on LEDC init.
+#ifdef BSP_LCD_BACKLIGHT
+    gpio_reset_pin(BSP_LCD_BACKLIGHT);
+    gpio_set_direction(BSP_LCD_BACKLIGHT, GPIO_MODE_OUTPUT);
+    gpio_set_level(BSP_LCD_BACKLIGHT, 0);
+    gpio_hold_en(BSP_LCD_BACKLIGHT);
+#endif
+#endif
+
+    // Keep GPIO states through deep sleep (e.g., backlight off).
+    gpio_deep_sleep_hold_en();
+
+    // Reduce power in unused RTC domains.
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RC_FAST, ESP_PD_OPTION_OFF);
+}
 
 void set_http_server_boot_grace_seconds(uint32_t seconds)
 {
@@ -224,6 +273,9 @@ static void enter_deep_sleep_until_next_active_start(void)
     ESP_LOGI(TAG,
              "Outside all windows, entering deep sleep for %" PRIu32 " seconds",
              sleep_seconds);
+    ESP_LOGI(TAG, "Preparing peripherals for deep sleep");
+    prepare_for_deep_sleep();
+    ESP_LOGI(TAG, "Entering deep sleep now");
     esp_sleep_enable_timer_wakeup((uint64_t)sleep_seconds * 1000000ULL);
     esp_deep_sleep_start();
 }

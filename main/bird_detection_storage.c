@@ -6,6 +6,8 @@
 #include "driver/sdmmc_host.h"
 #include "driver/gpio.h"
 #include "img_converters.h"
+#include "esp_camera.h"
+#include "app_camera_esp.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -22,6 +24,10 @@ static const char *TAG = "bird_storage";
 #define MAX_SPECIES_LEN 32
 #define SDCARD_MOUNT_POINT "/sd"
 #define BIRDS_FILE SDCARD_MOUNT_POINT"/birds.txt"
+#define STORAGE_DEBUG 0
+#define SAVE_IMAGES_TO_SD 0
+#define FLUSH_ASYNC_RETRY_MS 200
+#define FLUSH_ASYNC_POLL_MS 20
 #define IMAGE_WIDTH 96
 #define IMAGE_HEIGHT 96
 #define IMAGE_SIZE (IMAGE_WIDTH * IMAGE_HEIGHT * 2)  // RGB565
@@ -48,6 +54,24 @@ static struct {
     sdmmc_card_t *card;
     bool is_mounted;
 } s_storage;
+
+static TaskHandle_t s_flush_task;
+
+static void bird_storage_request_flush_async(void)
+{
+    if (s_flush_task) {
+        xTaskNotifyGive(s_flush_task);
+    }
+}
+
+static void flush_task(void *arg)
+{
+    (void)arg;
+    while (true) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        bird_storage_flush_to_sd();
+    }
+}
 
 static void restore_buffer_on_flush_failure(const bird_detection_t *detections, int count)
 {
@@ -90,6 +114,12 @@ void bird_storage_init(void)
     if (!s_storage.detections) {
         ESP_LOGE(TAG, "Failed to allocate detection buffer");
     }
+    if (s_flush_task == NULL) {
+        if (xTaskCreate(flush_task, "bird_flush", 8192, NULL, 6, &s_flush_task) != pdPASS) {
+            ESP_LOGE(TAG, "Failed to create bird flush task");
+            s_flush_task = NULL;
+        }
+    }
     ESP_LOGI(TAG, "Bird detection storage initialized");
 }
 
@@ -115,10 +145,30 @@ void bird_storage_add_detection_with_image(const char *species,
     
     if (xSemaphoreTake(s_storage.mutex, portMAX_DELAY) == pdTRUE) {
         if (s_storage.count >= MAX_DETECTIONS) {
-            ESP_LOGW(TAG, "Buffer full (%d detections), flushing to SD...", s_storage.count);
+            ESP_LOGW(TAG, "Buffer full (%d detections), scheduling async flush...", s_storage.count);
             xSemaphoreGive(s_storage.mutex);
-            bird_storage_flush_to_sd();
-            xSemaphoreTake(s_storage.mutex, portMAX_DELAY);
+            bird_storage_request_flush_async();
+
+            // Give the flush task a brief window to free space.
+            int waited = 0;
+            bool have_lock = false;
+            while (waited < FLUSH_ASYNC_RETRY_MS) {
+                vTaskDelay(pdMS_TO_TICKS(FLUSH_ASYNC_POLL_MS));
+                waited += FLUSH_ASYNC_POLL_MS;
+                if (xSemaphoreTake(s_storage.mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    if (s_storage.count < MAX_DETECTIONS) {
+                        have_lock = true;
+                        break;
+                    }
+                    xSemaphoreGive(s_storage.mutex);
+                }
+            }
+
+            if (!have_lock) {
+                if (xSemaphoreTake(s_storage.mutex, portMAX_DELAY) != pdTRUE) {
+                    return;
+                }
+            }
         }
         
         if (s_storage.count < MAX_DETECTIONS) {
@@ -136,6 +186,8 @@ void bird_storage_add_detection_with_image(const char *species,
             
             ESP_LOGI(TAG, "Added detection #%d: %s (%.2f)", 
                      s_storage.count, species, confidence);
+        } else {
+            ESP_LOGW(TAG, "Buffer still full after async flush attempt, dropping detection");
         }
         
         xSemaphoreGive(s_storage.mutex);
@@ -163,8 +215,12 @@ static esp_err_t sdcard_mount(void)
     
     ESP_LOGI(TAG, "Mounting SD card...");
     
-    // Deinitialize SDMMC host if it was initialized by camera or something else
-    // This is safe to call even if not initialized
+    // Deinitialize camera before SD access to avoid SDMMC bus conflicts.
+#if ESP_CAMERA_SUPPORTED
+    esp_camera_deinit();
+#endif
+    // Deinitialize SDMMC host if it was initialized by camera or something else.
+    // This is safe to call even if not initialized.
     sdmmc_host_deinit();
     vTaskDelay(pdMS_TO_TICKS(100));
     
@@ -215,7 +271,8 @@ static esp_err_t sdcard_mount(void)
     s_storage.is_mounted = true;
     ESP_LOGI(TAG, "✓ SD card mounted");
     
-    // Verify mount by listing directory
+#if STORAGE_DEBUG
+    // Verify mount by listing directory (slow on some cards)
     DIR *dir = opendir(SDCARD_MOUNT_POINT);
     if (dir) {
         ESP_LOGI(TAG, "✓ Mount point accessible");
@@ -230,6 +287,7 @@ static esp_err_t sdcard_mount(void)
         s_storage.is_mounted = false;
         return ESP_FAIL;
     }
+#endif
     
     return ESP_OK;
 }
@@ -253,6 +311,13 @@ static esp_err_t sdcard_unmount(void)
     
     // Deinitialize the SDMMC host to fully release it
     sdmmc_host_deinit();
+
+#if ESP_CAMERA_SUPPORTED
+    // Re-init camera after SD operations.
+    if (app_camera_init() != 0) {
+        ESP_LOGW(TAG, "Camera re-init failed after SD unmount");
+    }
+#endif
     
     ESP_LOGI(TAG, "✓ SD card unmounted");
     
@@ -306,6 +371,7 @@ esp_err_t bird_storage_flush_to_sd(void)
     // Give filesystem time to stabilize
     vTaskDelay(pdMS_TO_TICKS(50));
     
+#if SAVE_IMAGES_TO_SD
     // Ensure images directory exists
     struct stat st;
     if (stat(IMAGES_DIR, &st) != 0) {
@@ -314,6 +380,7 @@ esp_err_t bird_storage_flush_to_sd(void)
                      IMAGES_DIR, errno, strerror(errno));
         }
     }
+#endif
 
     // Open file for appending
     ESP_LOGI(TAG, "Opening file: %s", BIRDS_FILE);
@@ -348,6 +415,7 @@ esp_err_t bird_storage_flush_to_sd(void)
         localtime_r(&timestamp_sec, &timeinfo);
         strftime(iso_time, sizeof(iso_time), "%Y-%m-%dT%H:%M:%S", &timeinfo);
         
+#if SAVE_IMAGES_TO_SD
         char image_file[64] = {0};
         if (det->has_image) {
             // FATFS without LFN requires 8.3 filenames. Use 8-hex timestamp.
@@ -393,6 +461,14 @@ esp_err_t bird_storage_flush_to_sd(void)
         if (image_file[0]) {
             fputc('"', f);
         }
+#else
+        int written = fprintf(f,
+                "{\"species\":\"%s\",\"confidence\":%.2f,\"timestamp\":%lld,\"datetime\":\"%s\"}\n",
+                det->species,
+                det->confidence,
+                det->timestamp,
+                iso_time);
+#endif
         
         if (written < 0) {
             ESP_LOGE(TAG, "Write error on detection %d (errno: %d)", i, errno);

@@ -15,7 +15,7 @@ limitations under the License.
 
 #include "model_settings.h"
 
-const char* kCategoryLabels[kCategoryCount] = {
+const char* kCategoryLabels[2] = {
     "bird",
     "not_bird"
 };

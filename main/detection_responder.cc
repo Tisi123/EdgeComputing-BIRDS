@@ -28,7 +28,7 @@ extern "C" {
 // Storage throttling is handled separately by STORE_COOLDOWN_MS.
 #define CONFIDENCE_THRESHOLD 0.5f
 // Minimum time between stored detections (ms) to avoid duplicates.
-#define STORE_COOLDOWN_MS 300
+#define STORE_COOLDOWN_MS 200
 
 #if DISPLAY_SUPPORT
 void create_gui() {
