@@ -9,5 +9,5 @@
         "IDF_TARGET": "esp32s3"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/g++-13",
-    "cmake.sourceDirectory": "/home/andrej/birdhouse_server/birds",
+    "cmake.sourceDirectory": "C:/Users/para_/Desktop/EdgeComputing/birds",
 }
