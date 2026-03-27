@@ -32,6 +32,28 @@ Third-party datasets (COCO, CUB-200-2011, LILA ENA24) are **not included** and m
 
 ---
 
+## Training the model in Google Colab
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18Sh_G6UzMayeEFLGDky-rUCnaivUEBNi?usp=sharing)
+
+Once you have reconstructed the dataset, you can train and export the model entirely in the cloud:
+
+1. **Reconstruct the dataset** following the steps below
+2. **Zip the output folder** — the filename must be exactly `bird_not_bird_96x96_reconstructed.zip`:
+   ```bash
+   # Linux/macOS
+   zip -r bird_not_bird_96x96_reconstructed.zip dataset/bird_not_bird_96x96_reconstructed/
+   # Windows PowerShell
+   Compress-Archive dataset\bird_not_bird_96x96_reconstructed bird_not_bird_96x96_reconstructed.zip
+   ```
+3. **Upload** `bird_not_bird_96x96_reconstructed.zip` to the root of your Google Drive (`My Drive/`)
+4. **Open the Colab notebook** and run all cells
+
+The notebook trains a MobileNet-V1-style model (~232 KB INT8), exports FP32 + INT8 TFLite files,
+and generates a C array (`bird_detector_model.cc`) ready to embed in the ESP32-S3 firmware.
+
+---
+
 ## Our own redistributed images
 
 **Location:** `own_images/`
