@@ -288,13 +288,19 @@ All randomness is seeded for exact reproducibility:
 
 ### Dataset composition
 
-| Class     | Source                    | Fraction |
-|-----------|---------------------------|----------|
-| bird      | COCO + CUB (public)       | 85%      |
-| bird      | ESP32 camera              | 15%      |
-| not\_bird | COCO (public)             | 60%      |
-| not\_bird | ESP32 camera              | 25%      |
-| not\_bird | Garden video frames       | 15%      |
+Actual image counts from the original build (sourced from `split_manifest.csv`):
+
+| Class     | Source                         | Count | % of class |
+|-----------|--------------------------------|-------|------------|
+| bird      | COCO + CUB + ENA24 (public)    | 4308  | 86.2%      |
+| bird      | ESP32 camera                   |  692  | 13.8%      |
+| not\_bird | COCO + ENA24 (public)          | 4008  | 80.2%      |
+| not\_bird | ESP32 camera                   |  784  | 15.7%      |
+| not\_bird | Garden video frames            |  208  |  4.2%      |
+
+> **Note:** The pipeline targets 85/15% for birds and 60/25/15% for not\_bird, but actual
+> fractions differ because garden frames are limited by what survived deduplication (208 unique
+> frames), and the pipeline fills shortfalls from other sources.
 
 ### Key parameters in `scripts/build_dataset_96.py`
 
