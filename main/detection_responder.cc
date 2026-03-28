@@ -1,13 +1,14 @@
 #include "detection_responder.h"
 #include "tensorflow/lite/micro/micro_log.h"
 #include <sys/time.h>
-#include <cstring>
 #include "esp_main.h"
 
 #if DISPLAY_SUPPORT
 #include "bsp/esp-bsp.h"
 #include "esp_heap_caps.h"
+#include "esp_lvgl_port.h"
 #include "image_provider.h"
+#include <cstring>
 
 // Camera frame (96x96) is upscaled to 192x192 for display.
 #define IMG_WD (96 * 2)
@@ -77,6 +78,30 @@ void create_gui() {
 }
 #else
 void create_gui() {}
+#endif  // DISPLAY_SUPPORT
+
+#if DISPLAY_SUPPORT
+void display_prepare_for_sleep() {
+    // Best-effort: if display wasn't initialized, just turn off backlight/stop LVGL.
+    if (bsp_display_lock(100)) {
+        if (camera_canvas && canvas_buf) {
+            std::memset(canvas_buf, 0, IMG_WD * IMG_HT * sizeof(lv_color_t));
+            lv_obj_invalidate(camera_canvas);
+        }
+        if (label) {
+            lv_label_set_text_static(label, "");
+        }
+        if (status_indicator) {
+            lv_led_off(status_indicator);
+        }
+        bsp_display_unlock();
+    }
+    // Stop LVGL task and turn off backlight before pin holds.
+    lvgl_port_stop();
+    bsp_display_backlight_off();
+}
+#else
+void display_prepare_for_sleep() {}
 #endif  // DISPLAY_SUPPORT
 
 void RespondToDetection(float bird_score,

@@ -5,6 +5,7 @@
 #include "bird_detection_storage.h"
 #include "esp_err.h"
 #include "main_functions.h"
+#include "detection_responder.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -66,7 +67,7 @@ static time_window_utc_t s_http_windows[] = {
 
 // Detection window (GMT+1 schedule): 08:00-17:00
 static time_window_utc_t s_detection_windows[] = {
-    {.start_hour_utc = 8, .start_minute_utc = 0, .end_hour_utc = 17, .end_minute_utc = 0, .enabled = true},
+    {.start_hour_utc = 8, .start_minute_utc = 0, .end_hour_utc = 22, .end_minute_utc = 0, .enabled = true},
 };
 
 static uint32_t s_http_boot_grace_seconds = DEFAULT_HTTP_BOOT_GRACE_SECONDS;
@@ -224,6 +225,8 @@ static void prepare_for_deep_sleep(void)
 
 #if DISPLAY_SUPPORT
     // Force LCD pins low before sleep to avoid panel power draw.
+    // Blank display, stop LVGL, and turn off backlight to avoid a stuck frame.
+    display_prepare_for_sleep();
     disable_display_pins_for_sleep();
 #endif
 

@@ -23,6 +23,10 @@ limitations under the License.
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Called every time the results of a detection run are available.
 // `bird_score` is the model output probability for "bird".
 // `not_bird_score` is derived in firmware as (1.0f - bird_score) for UI/logs.
@@ -34,5 +38,12 @@ void RespondToDetection(float bird_score,
 
 // Initializes GUI components when display support is enabled.
 void create_gui();
+
+// Blanks the display and stops the LVGL display task before deep sleep.
+void display_prepare_for_sleep();
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // TENSORFLOW_LITE_MICRO_EXAMPLES_OBJECT_DETECTION_DETECTION_RESPONDER_H_
