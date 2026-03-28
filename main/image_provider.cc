@@ -85,9 +85,21 @@ TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* i
     ESP_LOGE(TAG, "Unexpected channel count: %d", channels);
     return kTfLiteError;
   }
+  if (!app_camera_lock(pdMS_TO_TICKS(1000))) {
+    ESP_LOGW(TAG, "Camera busy (lock timeout)");
+    return kTfLiteError;
+  }
+  if (!app_camera_is_initialized()) {
+    if (app_camera_init() != 0) {
+      ESP_LOGE(TAG, "Camera re-init failed");
+      app_camera_unlock();
+      return kTfLiteError;
+    }
+  }
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) {
     ESP_LOGE(TAG, "Camera capture failed");
+    app_camera_unlock();
     return kTfLiteError;
   }
 
@@ -135,6 +147,7 @@ TfLiteStatus GetImage(int image_width, int image_height, int channels, int8_t* i
 #endif // DISPLAY_SUPPORT
 
   esp_camera_fb_return(fb);
+  app_camera_unlock();
   return kTfLiteOk;
 #else
   return kTfLiteError;

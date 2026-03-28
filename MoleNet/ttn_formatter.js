@@ -4,15 +4,9 @@ function decodeUplink(input) {
   
   // Species ID mapping
   var speciesMap = {
-    1: "great_tit",
-    2: "blue_tit",
-    3: "robin",
-    4: "blackbird",
-    5: "sparrow",
-    6: "woodpecker",
-    7: "finch",
-    8: "starling",
-    254: "time_sync",      // Time synchronization message
+    1: "bird",
+    2: "not_bird",
+    254: "time_sync",
     255: "unknown"
   };
   
@@ -32,7 +26,7 @@ function decodeUplink(input) {
         timestamp: timestamp,
         datetime: timestamp > 0 ? new Date(timestamp * 1000).toISOString() : "N/A"
       };
-      
+
       // Add special flag for time sync messages
       if (speciesId === 254) {
         entry.message_type = "time_sync";

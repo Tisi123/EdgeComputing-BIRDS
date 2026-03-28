@@ -26,6 +26,8 @@ limitations under the License.
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "bird_detection_storage.h"
+#include "app_camera_esp.h"
 
 #include <cstdio>
 #include <new>
@@ -268,6 +270,16 @@ void loop()
     return;
   }
 
+  if (bird_storage_is_flushing()) {
+    vTaskDelay(pdMS_TO_TICKS(100));
+    return;
+  }
+
+  if (!app_camera_is_initialized()) {
+    vTaskDelay(pdMS_TO_TICKS(100));
+    return;
+  }
+
   // Get image from provider.
   if (kTfLiteOk != GetImage(kNumCols, kNumRows, kNumChannels, input->data.int8))
   {
@@ -294,6 +306,6 @@ void loop()
   RespondToDetection(bird_score, not_bird_score, image_bytes, image_len);
 
   // Yield briefly to avoid starving other tasks.
-  vTaskDelay(1);
+  vTaskDelay(10);
 }
 #endif

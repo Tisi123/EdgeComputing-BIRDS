@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 extern void run_inference(void *ptr);
+void set_detection_paused(bool paused);
+bool is_detection_paused(void);
 #ifdef __cplusplus
 }
 #endif

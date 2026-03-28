@@ -157,21 +157,25 @@ def encode_bird_data(bird_data):
     Returns: bytes object
     """
     SPECIES_MAP = {
-        "great tit": 1,
-        "blue tit": 2,
-        "robin": 3,
-        "blackbird": 4,
-        "common blackbird": 4,
-        "sparrow": 5,
-        "woodpecker": 6,
-        "finch": 7,
-        "starling": 8,
+        "bird": 1,
+        "not_bird": 2,
+        "unknown": 255,
     }
     
     species = bird_data.get("species", "unknown").lower()
     species_id = SPECIES_MAP.get(species, 255)
     
-    confidence = int(bird_data.get("confidence", 0) * 100)  # Scale to 0-100
+    # Confidence in storage is typically 0.0-1.0. If it already looks like
+    # a percent (e.g. 60-100), keep it as-is.
+    confidence_raw = bird_data.get("confidence", 0)
+    try:
+        confidence_val = float(confidence_raw)
+    except Exception:
+        confidence_val = 0.0
+    if confidence_val > 1.0:
+        confidence = int(confidence_val)
+    else:
+        confidence = int(confidence_val * 100)  # Scale to 0-100
     confidence = max(0, min(255, confidence))  # Clamp to byte range
     
     # Handle timestamp - could be int or string

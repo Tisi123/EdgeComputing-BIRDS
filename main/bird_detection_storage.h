@@ -16,6 +16,11 @@ extern "C" {
 void bird_storage_init(void);
 
 /**
+ * Control whether the SD card stays mounted between flushes.
+ */
+void bird_storage_set_keep_mounted(bool keep);
+
+/**
  * Add a bird detection to the in-memory buffer
  * @param species Bird species name
  * @param confidence Detection confidence (0.0 - 1.0)
@@ -49,12 +54,22 @@ int bird_storage_get_count(void);
 esp_err_t bird_storage_flush_to_sd(void);
 
 /**
+ * Check whether a flush to SD card is currently in progress.
+ */
+bool bird_storage_is_flushing(void);
+
+/**
  * Get all detections as JSON array (for HTTP server)
  * @param buffer Output buffer
  * @param buffer_size Size of output buffer
  * @return Number of bytes written
  */
 size_t bird_storage_get_all_jsonl(char *buffer, size_t buffer_size);
+
+/**
+ * Unmount SD card regardless of keep-mounted setting.
+ */
+void bird_storage_force_unmount(void);
 
 #ifdef __cplusplus
 }

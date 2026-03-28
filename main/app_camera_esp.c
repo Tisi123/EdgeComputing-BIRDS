@@ -21,6 +21,41 @@ limitations under the License.
 #endif
 
 static const char *TAG = "app_camera";
+static SemaphoreHandle_t s_camera_lock = NULL;
+static volatile bool s_camera_initialized = false;
+
+static void ensure_camera_lock(void)
+{
+  if (s_camera_lock == NULL) {
+    s_camera_lock = xSemaphoreCreateMutex();
+  }
+}
+
+bool app_camera_lock(TickType_t timeout_ticks)
+{
+  ensure_camera_lock();
+  if (s_camera_lock == NULL) {
+    return false;
+  }
+  return xSemaphoreTake(s_camera_lock, timeout_ticks) == pdTRUE;
+}
+
+void app_camera_unlock()
+{
+  if (s_camera_lock) {
+    xSemaphoreGive(s_camera_lock);
+  }
+}
+
+bool app_camera_is_initialized(void)
+{
+  return s_camera_initialized;
+}
+
+void app_camera_mark_deinit(void)
+{
+  s_camera_initialized = false;
+}
 
 int app_camera_init() {
 #if ESP_CAMERA_SUPPORTED
@@ -82,6 +117,7 @@ int app_camera_init() {
     ESP_LOGE(TAG, "Camera init failed with error 0x%x", err);
     return -1;
   }
+  s_camera_initialized = true;
   sensor_t *s = esp_camera_sensor_get();
   s->set_vflip(s, 1); //flip it back
   //initial sensors are flipped vertically and colors are a bit saturated

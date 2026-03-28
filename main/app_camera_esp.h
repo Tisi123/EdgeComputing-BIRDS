@@ -22,6 +22,8 @@ limitations under the License.
 #include "esp_system.h"
 
 #include "esp_main.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 /**
  * PIXFORMAT_RGB565,    // 2BPP/RGB565
@@ -256,6 +258,10 @@ extern "C" {
 #endif
 
 int app_camera_init();
+bool app_camera_lock(TickType_t timeout_ticks);
+void app_camera_unlock();
+bool app_camera_is_initialized(void);
+void app_camera_mark_deinit(void);
 
 #ifdef __cplusplus
 }
