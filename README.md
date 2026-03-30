@@ -2,6 +2,8 @@
 
 BIRDS is an end-to-end edge AI project centered on an ESP32-S3-EYE camera node that performs on-device TinyML inference, stores detections locally, exposes them over Wi-Fi, and forwards summaries through a MoleNet/LoRaWAN path. The deployed model in this repository is a **binary bird vs not-bird detector**, not a species classifier.
 
+The codebase was taken from https://github.com/TRASF/Object-Detection which was provided during the correspondign uni-course. We adjusted and added individual scripts to fit our cause.
+
 ## Overview
 
 The repository combines three connected parts of the system:
