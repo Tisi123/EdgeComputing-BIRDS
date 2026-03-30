@@ -53,7 +53,7 @@ This rebuilds the `96x96` bird/not-bird dataset used by the embedded detector. T
 - [main/main.c](main/main.c)
   Responsible for the initialization of the pipeline and wake/sleep-schedules. Set s_http_windows[] and s_detection_windows[] to be time-windows you want for the phases
 - [main/bird_detection_storage.c](main/bird_detection_storage.c)
-  Handles the storing logic of the device, different settings to have the images saved as garyscale/color, img quality and other settings related to the sd card
+  Handles the storing logic of the device, different settings to have the images saved as grayscale/color, img quality and other settings related to the sd card
 - [main/detection_responder.c](main/detection_responder.c)
   Responsible for handling the detections and showcasing it in the display as ui element
 - [main/http_server.c](main/http_serrver.c)
