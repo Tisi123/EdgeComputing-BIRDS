@@ -48,13 +48,20 @@ python run_pipeline.py --with-own-images --with-ena24
 This rebuilds the `96x96` bird/not-bird dataset used by the embedded detector. The exact dataset layout, optional flags, manual step-by-step execution, and third-party data requirements are documented in [`dataset_reconstruction/README.md`](dataset_reconstruction/README.md).
 
 ## Integration Notes
-
-The ESP32 firmware exposes a small HTTP interface used by the MoleNet side:
-
-- `GET /sync_devices_request`
-- `GET /get_bird_data_request`
-- `POST /flush_to_sd`
-- `GET /get_bird_history`
+- [main/wifi_ap.c](main/wifi_ap.c)
+  Setting up a wifi connection for unix-time sync, provide WIFI_SSID and WIFI_PASS with your credentials, otherwise it always defaults to 0
+- [main/main.c](main/main.c)
+  Responsible for the initialization of the pipeline and wake/sleep-schedules. Set s_http_windows[] and s_detection_windows[] to be time-windows you want for the phases
+- [main/bird_detection_storage.c](main/bird_detection_storage.c)
+  Handles the storing logic of the device, different settings to have the images saved as garyscale/color, img quality and other settings related to the sd card
+- [main/detection_responder.c](main/detection_responder.c)
+  Responsible for handling the detections and showcasing it in the display as ui element
+- [main/http_server.c](main/http_serrver.c)
+  Exposes a small HTTP interface used by the MoleNet side:
+  - `GET /sync_devices_request` returns the inter clocktime of the s3-eye so the devices can sync up for wake/sleep-schedules
+  - `GET /get_bird_data_request` returns all bird data currently buffered in RAM
+  - `POST /flush_to_sd` flushes the currently buffered detections from RAM to the sd card
+  - `GET /get_bird_history` returns the metadata of bird-detections saved on the sd card
 
 ## Important Notes
 
